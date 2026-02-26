@@ -1,16 +1,18 @@
 ﻿#include "APlayerControllerTB.h"
 
+#include "APlayerCharacter.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
-#include "InputActionValue.h"
 #include "IntVectorTypes.h"
-#include "Blueprint/AIBlueprintHelperLibrary.h"
-#include "GameFramework/SpringArmComponent.h"
 #include "NiagaraFunctionLibrary.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
+#include "World/ACamera.h"
 
 void APlayerControllerTB::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	UWidgetBlueprintLibrary::SetInputMode_GameAndUIEx(this, nullptr, EMouseLockMode::LockAlways);
 	CenterMouseOnScreen();
 }
 
@@ -31,18 +33,12 @@ void APlayerControllerTB::SetupInputComponent()
 	}
 }
 
-void APlayerControllerTB::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
-	HandleCameraMovement();
-}
-
 void APlayerControllerTB::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
-
-	CameraSpringArm = InPawn->GetComponentByClass<USpringArmComponent>();
-	check(CameraSpringArm);
+	
+	CameraPawn = Cast<ACamera>(InPawn);
+	check(CameraPawn);
 }
 
 void APlayerControllerTB::SetMappingContext(const bool IsFocusedOnUI)
@@ -56,10 +52,31 @@ void APlayerControllerTB::SetMappingContext(const bool IsFocusedOnUI)
 	}
 }
 
+void APlayerControllerTB::SelectPlayerCharacter(APlayerCharacter* PlayerCharacter)
+{
+	if (ControlledCharacter && ControlledCharacter != PlayerCharacter)
+	{
+		ControlledCharacter->StopMovement();
+	}
+	
+	ControlledCharacter = PlayerCharacter;
+	check(ControlledCharacter);
+	CameraPawn->CenterOnPlayerCharacter(ControlledCharacter);
+}
+
+USpringArmComponent* APlayerControllerTB::GetCameraSpringArm() const
+{
+	if (CameraPawn)
+	{
+		return CameraPawn->GetSpringArm();
+	}
+	
+	return nullptr;
+}
+
 void APlayerControllerTB::RotateCamera(const FInputActionValue& Value)
 {
-	constexpr float RotationScaling = 3.f;
-	CameraSpringArm->AddWorldRotation(FRotator(0.f, Value.Get<float>() * RotationScaling, 0.f));
+	CameraPawn->RotateCamera(Value);
 }
 
 void APlayerControllerTB::MoveToDestination(const FInputActionInstance& Instance)
@@ -70,7 +87,7 @@ void APlayerControllerTB::MoveToDestination(const FInputActionInstance& Instance
 		return;
 	}
 	
-	UAIBlueprintHelperLibrary::SimpleMoveToLocation(this, MovementDestination);
+	ControlledCharacter->MoveToLocation(MovementDestination);
 	UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), FXDestinationPoint, MovementDestination, 
 		FRotator::ZeroRotator,FVector::OneVector, true, true, ENCPoolMethod::None, true);
 }
@@ -80,49 +97,12 @@ void APlayerControllerTB::CenterMouseOnScreen()
 	FTimerHandle TimerUntilNextFrame;
 	GetWorldTimerManager().SetTimer(TimerUntilNextFrame, [this, &TimerUntilNextFrame]()
 	{
+		GetWorldTimerManager().ClearTimer(TimerUntilNextFrame);
+		
 		UE::Geometry::FVector2i ViewportSize;
 		GetViewportSize(ViewportSize.X, ViewportSize.Y);
 		SetMouseLocation(ViewportSize.X * 0.5f, ViewportSize.Y * 0.5f);
 		
-		GetWorldTimerManager().ClearTimer(TimerUntilNextFrame);
+		CameraPawn->SetEnableCameraMovement(true);
 	}, 0.01f, false);
-}
-
-void APlayerControllerTB::HandleCameraMovement() const
-{
-	const FVector MoveScaling = FVector(8.f, 8.f, 0.f);
-	const FVector RightVector = CameraSpringArm->GetRightVector();
-	const FVector ForwardVector = CameraSpringArm->GetForwardVector();
-	UE::Geometry::FVector2i ViewportSize;
-	FVector2f MousePosition = FVector2f::ZeroVector;
-	FVector MoveDirection = FVector::ZeroVector;
-	
-	GetMousePosition(MousePosition.X, MousePosition.Y);
-	GetViewportSize(ViewportSize.X, ViewportSize.Y);
-	
-	MousePosition.X /= ViewportSize.X;
-	MousePosition.Y /= ViewportSize.Y;
-	
-	if (MousePosition.X > 0.99f)
-	{
-		MoveDirection = MoveScaling * RightVector;
-	} else if (MousePosition.X < 0.01f)
-	{
-		MoveDirection = -1.f * MoveScaling * RightVector;
-	}
-	
-	if (MousePosition.Y > 0.99f)
-	{
-		MoveDirection += -1.f * MoveScaling * ForwardVector;
-	} else if (MousePosition.Y < 0.01f)
-	{
-		MoveDirection += MoveScaling * ForwardVector;
-	}
-	
-	CameraSpringArm->TargetOffset += MoveDirection;
-}
-
-void APlayerControllerTB::ResetCameraMovement() const
-{
-	CameraSpringArm->TargetOffset = FVector::ZeroVector;
 }

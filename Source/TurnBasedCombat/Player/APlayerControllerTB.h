@@ -4,9 +4,10 @@
 #include "GameFramework/PlayerController.h"
 #include "APlayerControllerTB.generated.h"
 
+class ACamera;
+class APlayerCharacter;
 class UNiagaraSystem;
 struct FInputActionInstance;
-class USpringArmComponent;
 class UInputAction;
 class UInputMappingContext;
 struct FInputActionValue;
@@ -24,6 +25,7 @@ protected:
 	UPROPERTY(EditAnywhere, Category="Input")
 	UInputMappingContext* UIMappingContext;
 	
+	UPROPERTY()
 	UInputMappingContext* CurrentMappingContext = nullptr;
 	
 	/** Input Action for zooming the camera */
@@ -45,18 +47,26 @@ protected:
 	FVector MovementDestination = FVector::ZeroVector;
 	
 	UPROPERTY(BlueprintReadOnly, Category="Camera")
-	USpringArmComponent* CameraSpringArm = nullptr;
+	ACamera* CameraPawn = nullptr;
+	
+	UPROPERTY(BlueprintReadWrite, Category="Player")
+	APlayerCharacter* ControlledCharacter = nullptr;
 
 public:
 	virtual void BeginPlay() override;
 	virtual void SetupInputComponent() override;
-	virtual void Tick(float DeltaSeconds) override;
 	virtual void OnPossess(APawn* InPawn) override;
 	
 	UFUNCTION(BlueprintCallable, Category="Input")
 	void SetMappingContext(const bool IsFocusedOnUI);
 	
+	UFUNCTION(BlueprintCallable, Category="Player")
+	void SelectPlayerCharacter(APlayerCharacter* PlayerCharacter);
+	
 protected:
+	UFUNCTION(BlueprintPure, Category="Camera")
+	USpringArmComponent* GetCameraSpringArm() const;
+	
 	// The implementation is in the blueprint because of Timeline usage
 	UFUNCTION(BlueprintImplementableEvent, Category="Camera")
 	void ZoomCamera(const FInputActionValue& Value);
@@ -67,7 +77,4 @@ protected:
 private:
 	/** Set cursor in the center of the screen */
 	void CenterMouseOnScreen();
-	/** Edge scrolling logic */
-	void HandleCameraMovement() const;
-	void ResetCameraMovement() const;
 };
