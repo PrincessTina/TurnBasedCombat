@@ -1,14 +1,14 @@
 ﻿#pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "Combat/ACombatCharacter.h"
 #include "APlayerCharacter.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FOnCharacterMovementStarted);
 DECLARE_MULTICAST_DELEGATE(FOnCharacterMovementFinished);
 
 UCLASS(abstract)
-class APlayerCharacter : public ACharacter
+class APlayerCharacter : public ACombatCharacter
 {
 	GENERATED_BODY()
 	
